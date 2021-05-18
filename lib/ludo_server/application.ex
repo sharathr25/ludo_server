@@ -14,9 +14,10 @@ defmodule LudoServer.Application do
       # Start the PubSub system
       {Phoenix.PubSub, name: LudoServer.PubSub},
       # Start the Endpoint (http/https)
-      LudoServerWeb.Endpoint
+      LudoServerWeb.Endpoint,
       # Start a worker by calling: LudoServer.Worker.start_link(arg)
       # {LudoServer.Worker, arg}
+      LudoServer.RoomServerSupervisor
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

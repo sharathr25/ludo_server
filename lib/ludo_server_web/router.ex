@@ -10,5 +10,7 @@ defmodule LudoServerWeb.Router do
     pipe_through :api
 
     get "/status", StatusController, :get_status
+
+    post "/create_room", RoomController, :create_room
   end
 end
