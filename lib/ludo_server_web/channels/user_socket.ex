@@ -2,7 +2,7 @@ defmodule LudoServerWeb.UserSocket do
   use Phoenix.Socket
 
   ## Channels
-  # channel "room:*", LudoServerWeb.RoomChannel
+  channel "room:*", LudoServerWeb.RoomChannel
 
   # Socket params are passed from the client and can
   # be used to verify and authenticate a user. After
