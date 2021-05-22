@@ -1,3 +1,5 @@
 defmodule LudoServer.Room do
-  defstruct [:room_token, players: []]
+  @derive {Jason.Encoder, only: [:room_id, :players]}
+
+  defstruct [:room_id, players: []]
 end
