@@ -7,9 +7,9 @@ defmodule LudoServerWeb.RoomChannel do
     {:ok, socket}
   end
 
-  def handle_in("JOIN_GAME", %{"name" => name}, socket) do
+  def handle_in("JOIN_GAME", %{"name" => name, "id" => id}, socket) do
     %{:topic => topic} = socket
-    String.split(topic, ":") |> List.last() |> RoomServer.join_room(name)
+    String.split(topic, ":") |> List.last() |> RoomServer.join_room(name, id)
     {:noreply, socket}
   end
 

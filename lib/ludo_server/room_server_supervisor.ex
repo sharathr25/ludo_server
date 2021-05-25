@@ -6,10 +6,10 @@ defmodule LudoServer.RoomServerSupervisor do
     DynamicSupervisor.start_link(__MODULE__, [], name: __MODULE__)
   end
 
-  def start_room_server() do
+  def start_room_server(id) do
     spec = %{
       id: UUID.uuid1(),
-      start: {RoomServer, :start_room, []},
+      start: {RoomServer, :start_room, [id]},
       restart: :transient
     }
 

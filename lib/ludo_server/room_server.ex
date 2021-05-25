@@ -4,14 +4,14 @@ defmodule LudoServer.RoomServer do
   alias LudoServerWeb.Endpoint
 
   # Client
-  def start_room() do
-    room = %Room{room_id: UUID.uuid1(), players: []}
+  def start_room(id) do
+    room = %Room{room_id: UUID.uuid1(), players: [], host_id: id}
     {:ok, pid} = GenServer.start_link(__MODULE__, room, name: {:via, Swarm, room.room_id})
     {:ok, pid, room.room_id}
   end
 
-  def join_room(room_id, name) do
-    GenServer.cast({:via, :swarm, room_id}, {:join_room, name})
+  def join_room(room_id, name, id) do
+    GenServer.cast({:via, :swarm, room_id}, {:join_room, name, id})
   end
 
   def get_game_state(room_id) do
@@ -25,12 +25,12 @@ defmodule LudoServer.RoomServer do
   end
 
   @impl true
-  def handle_cast({:join_room, name}, state) do
+  def handle_cast({:join_room, name, id}, state) do
     room_id = Map.get(state, :room_id)
     existing_players = Map.get(state, :players)
 
     updated_state =
-      add_player(state, name, Enum.any?(existing_players, fn p -> p.name == name end))
+      add_player(state, name, id, Enum.any?(existing_players, fn p -> p.id == id end))
 
     Endpoint.broadcast!("room:#{room_id}", "PLAYER_JOINED_NOTIFY", updated_state)
 
@@ -44,11 +44,11 @@ defmodule LudoServer.RoomServer do
     {:noreply, state}
   end
 
-  defp add_player(state, _name, true) do
+  defp add_player(state, _name, _id, true) do
     state
   end
 
-  defp add_player(state, name, false) do
+  defp add_player(state, name, id, false) do
     existing_players = Map.get(state, :players)
     no_of_existing_players = length(existing_players)
     seat = no_of_existing_players + 1
@@ -61,7 +61,7 @@ defmodule LudoServer.RoomServer do
               %Player{
                 name: name,
                 seat: seat,
-                id: UUID.uuid1(),
+                id: id,
                 pawns: [
                   %Pawn{no: 1, square: "H#{seat}HS1"},
                   %Pawn{no: 2, square: "H#{seat}HS2"},
