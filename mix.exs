@@ -45,6 +45,7 @@ defmodule LudoServer.MixProject do
       {:plug_cowboy, "~> 2.0"},
       {:swarm, "~> 3.0"},
       {:uuid, "~> 1.1"},
+      {:proper_case, "~> 1.0.2"},
       {:cors_plug, "~> 2.0"}
     ]
   end
