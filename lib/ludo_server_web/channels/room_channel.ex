@@ -18,4 +18,10 @@ defmodule LudoServerWeb.RoomChannel do
     String.split(topic, ":") |> List.last() |> RoomServer.get_game_state()
     {:noreply, socket}
   end
+
+  def handle_in("START_GAME", _params, socket) do
+    %{:topic => topic} = socket
+    String.split(topic, ":") |> List.last() |> RoomServer.start_game()
+    {:noreply, socket}
+  end
 end

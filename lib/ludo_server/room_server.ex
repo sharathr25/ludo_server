@@ -3,9 +3,9 @@ defmodule LudoServer.RoomServer do
   alias LudoServer.{Room, Player, Pawn}
   alias LudoServerWeb.Endpoint
 
-  # Client
+  # Client -------------------------
   def start_room(id) do
-    room = %Room{room_id: UUID.uuid1(), players: [], host_id: id}
+    room = %Room{room_id: UUID.uuid1(), players: [], host_id: id, game_status: "CREATED"}
     {:ok, pid} = GenServer.start_link(__MODULE__, room, name: {:via, Swarm, room.room_id})
     {:ok, pid, room.room_id}
   end
@@ -18,7 +18,11 @@ defmodule LudoServer.RoomServer do
     GenServer.cast({:via, :swarm, room_id}, {:get_game_state})
   end
 
-  # Server (callbacks)
+  def start_game(room_id) do
+    GenServer.cast({:via, :swarm, room_id}, {:start_game})
+  end
+
+  # Server (callbacks) ----------------
   @impl true
   def init(room) do
     {:ok, room}
@@ -44,6 +48,15 @@ defmodule LudoServer.RoomServer do
     {:noreply, state}
   end
 
+  @impl true
+  def handle_cast({:start_game}, state) do
+    room_id = Map.get(state, :room_id)
+    existing_players = Map.get(state, :players)
+    updated_state = start_game(state, room_id, length(existing_players) > 1)
+    {:noreply, updated_state}
+  end
+
+  # private functions ------------------------
   defp add_player(state, _name, _id, true) do
     state
   end
@@ -71,5 +84,27 @@ defmodule LudoServer.RoomServer do
               }
             ]
     }
+  end
+
+  defp start_game(state, room_id, _more_than_one_player_available = true) do
+    players = Map.get(state, :players)
+    player_in_seat_1 = Enum.filter(players, fn p -> p.seat == 1 end) |> List.first()
+    id_of_player_in_seat_1 = Map.get(player_in_seat_1, :id)
+
+    updated_state = %Room{
+      state
+      | game_status: "ON_GOING",
+        current_player_id: id_of_player_in_seat_1,
+        action_to_take: "ROLL_DICE"
+    }
+
+    Endpoint.broadcast!("room:#{room_id}", "START_GAME_NOTIFY", updated_state)
+
+    updated_state
+  end
+
+  defp start_game(state, room_id, _more_than_one_player_available = false) do
+    Endpoint.broadcast!("room:#{room_id}", "START_GAME_ERROR", %{reason: "NOT_ENOUGH_PLAYERS"})
+    state
   end
 end
