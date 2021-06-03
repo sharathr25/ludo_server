@@ -24,4 +24,18 @@ defmodule LudoServerWeb.RoomChannel do
     String.split(topic, ":") |> List.last() |> RoomServer.start_game()
     {:noreply, socket}
   end
+
+  def handle_in("ROLL_DICE", params, socket) do
+    %{:topic => topic} = socket
+    %{"player_id" => player_id} = ProperCase.to_snake_case(params)
+    String.split(topic, ":") |> List.last() |> RoomServer.roll_dice(player_id)
+    {:noreply, socket}
+  end
+
+  def handle_in("MOVE_PAWN", params, socket) do
+    %{:topic => topic} = socket
+    %{"pawn_no" => pawn_no, "player_id" => player_id} = ProperCase.to_snake_case(params)
+    String.split(topic, ":") |> List.last() |> RoomServer.move_pawn(player_id, pawn_no)
+    {:noreply, socket}
+  end
 end
