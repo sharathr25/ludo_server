@@ -3,6 +3,10 @@ defmodule LudoServer.RoomServer do
   alias LudoServer.{Room, Player, Pawn}
   alias LudoServerWeb.Endpoint
 
+  @start_squares_for_seats %{1 => 0, 2 => 13, 3 => 26, 4 => 39}
+  @end_squares_for_seats %{1 => 51, 2 => 12, 3 => 25, 4 => 38}
+  @end_square_of_board 52
+
   # Client -------------------------
   def start_room(id) do
     room = %Room{room_id: UUID.uuid1(), players: [], host_id: id, game_status: "CREATED"}
@@ -60,7 +64,8 @@ defmodule LudoServer.RoomServer do
   def handle_cast({:start_game}, state) do
     room_id = Map.get(state, :room_id)
     existing_players = Map.get(state, :players)
-    updated_state = start_game(state, room_id, length(existing_players) > 1)
+    # updated_state = start_game(state, room_id, length(existing_players) > 1)
+    updated_state = start_game(state, room_id, true)
     {:noreply, updated_state}
   end
 
@@ -75,8 +80,9 @@ defmodule LudoServer.RoomServer do
       Enum.find(players, nil, fn p -> p.id == player_id end)
       |> Map.get(:pawns)
       |> Enum.filter(fn p ->
-        (p.group == "HOME" and score == 6) ||
-          p.group != "HOME"
+        (p.group == "HOME" and score == 6) or
+          (p.group === "HOME_COLUMN" and score + p.square_number <= 6) or
+          (p.group != "HOME" and p.group != "HOME_COLUMN" and p.group != "WIN_TRIANGLE")
       end)
       |> Enum.map(fn p -> p.no end)
 
@@ -95,44 +101,26 @@ defmodule LudoServer.RoomServer do
     room_id = Map.get(state, :room_id)
     score = Map.get(state, :score)
     players = Map.get(state, :players)
-    current_player_seat = Map.get(state, :current_player_seat)
     player = players |> Enum.find(nil, fn p -> p.id == player_id end)
     other_players = players |> Enum.filter(fn p -> p.id != player_id end)
     %Player{:pawns => pawns, :seat => seat} = player
 
-    seats = %{1 => 0, 2 => 13, 3 => 26, 4 => 39}
-
     updated_pawns =
       pawns
-      |> Enum.map(fn p ->
-        cond do
-          p.no == pawn_no ->
-            cond do
-              p.group == "HOME" ->
-                %Pawn{p | square_number: score + seats[seat], group: "COMMUNITY"}
+      |> Enum.map(fn p -> maybe_update_pawn(p, seat, score, p.no == pawn_no) end)
 
-              p.group == "COMMUNITY" ->
-                %Pawn{p | square_number: score + p.square_number, group: "COMMUNITY"}
+    updated_player =
+      %Player{player | pawns: updated_pawns}
+      |> maybe_update_rank(
+        Enum.all?(updated_pawns, fn p -> p.group == "WIN_TRIANGLE" end),
+        Enum.map(players, fn p -> p.rank end) |> Enum.max()
+      )
 
-              true ->
-                p
-            end
+    updated_players = other_players ++ [updated_player]
 
-          true ->
-            p
-        end
-      end)
+    players_still_need_to_play = updated_players |> Enum.filter(fn p -> p.rank == 0 end)
 
-    updated_player = %Player{player | pawns: updated_pawns}
-
-    updated_state = %Room{
-      state
-      | players: other_players ++ [updated_player],
-        action_to_take: "ROLL_DICE",
-        score: 0,
-        pawns_that_can_move: [],
-        current_player_seat: rem(current_player_seat, length(players)) + 1
-    }
+    updated_state = proceed_or_end_game(players_still_need_to_play, updated_players, state)
 
     Endpoint.broadcast!("room:#{room_id}", "MOVE_PAWN_NOTIFY", updated_state)
 
@@ -150,11 +138,12 @@ defmodule LudoServer.RoomServer do
 
   defp maybe_player_can_move(state, _is_there_pawns_to_move = false, _pawns_that_can_move) do
     current_player_seat = Map.get(state, :current_player_seat)
-    players = Map.get(state, :players)
+    players_still_need_to_play = Map.get(state, :players) |> Enum.filter(fn p -> p.rank == 0 end)
 
     %Room{
       state
-      | current_player_seat: rem(current_player_seat, length(players)) + 1,
+      | current_player_seat:
+          get_next_player(current_player_seat, players_still_need_to_play).seat,
         action_to_take: "ROLL_DICE"
     }
   end
@@ -166,7 +155,7 @@ defmodule LudoServer.RoomServer do
   defp add_player(state, name, id, false) do
     existing_players = Map.get(state, :players)
     no_of_existing_players = length(existing_players)
-    seat = no_of_existing_players + 1
+    seat = no_of_existing_players + 4
 
     %Room{
       state
@@ -192,7 +181,7 @@ defmodule LudoServer.RoomServer do
     updated_state = %Room{
       state
       | game_status: "ON_GOING",
-        current_player_seat: 1,
+        current_player_seat: Enum.at(Map.get(state, :players), 0).seat,
         action_to_take: "ROLL_DICE"
     }
 
@@ -204,5 +193,115 @@ defmodule LudoServer.RoomServer do
   defp start_game(state, room_id, _more_than_one_player_available = false) do
     Endpoint.broadcast!("room:#{room_id}", "START_GAME_ERROR", %{reason: "NOT_ENOUGH_PLAYERS"})
     state
+  end
+
+  defp get_next_player(current_player_seat, players) do
+    players
+    |> Enum.at(
+      rem(
+        Enum.find_index(
+          players,
+          fn p ->
+            p.seat == current_player_seat
+          end
+        ) + 1,
+        length(players)
+      )
+    )
+  end
+
+  defp proceed_or_end_game(_players_still_need_to_play = [], players, state) do
+    %Room{
+      state
+      | players: players,
+        game_status: "GAME_OVER",
+        pawns_that_can_move: [],
+        current_player_seat: nil,
+        action_to_take: nil
+    }
+  end
+
+  defp proceed_or_end_game(players_still_need_to_play, players, state) do
+    current_player_seat = Map.get(state, :current_player_seat)
+
+    %Room{
+      state
+      | players: players,
+        action_to_take: "ROLL_DICE",
+        pawns_that_can_move: [],
+        current_player_seat: get_next_player(current_player_seat, players_still_need_to_play).seat
+    }
+  end
+
+  defp maybe_update_rank(%Player{rank: 0} = player, _won = true, max_rank) do
+    %Player{player | rank: max_rank + 1}
+  end
+
+  defp maybe_update_rank(player, _won, _max_rank) do
+    player
+  end
+
+  defp maybe_update_pawn(p, seat, score, _need_to_move = true) do
+    cond do
+      p.group == "HOME" ->
+        %Pawn{
+          p
+          | square_number: score + @start_squares_for_seats[seat],
+            group: "COMMUNITY"
+        }
+
+      p.group == "COMMUNITY" and seat == 1 and
+          score + p.square_number > @end_squares_for_seats[seat] ->
+        %Pawn{
+          p
+          | square_number: score + p.square_number - @end_squares_for_seats[seat],
+            group: "HOME_COLUMN"
+        }
+
+      p.group == "COMMUNITY" and
+        p.square_number <= @end_squares_for_seats[seat] and
+          score + p.square_number > @end_squares_for_seats[seat] ->
+        %Pawn{
+          p
+          | square_number:
+              rem(score + p.square_number, @end_square_of_board) -
+                @end_squares_for_seats[seat],
+            group: "HOME_COLUMN"
+        }
+
+      p.group == "HOME_COLUMN" and score + p.square_number < 6 ->
+        %Pawn{
+          p
+          | square_number: rem(score + p.square_number, @end_square_of_board)
+        }
+
+      p.group == "HOME_COLUMN" and score + p.square_number == 6 ->
+        %Pawn{
+          p
+          | square_number: 1,
+            group: "WIN_TRIANGLE"
+        }
+
+      p.group == "COMMUNITY" ->
+        %Pawn{
+          p
+          | square_number: get_square_number(rem(score + p.square_number, @end_square_of_board))
+        }
+
+      true ->
+        p
+    end
+  end
+
+  defp maybe_update_pawn(pawn, _seat, _score, _need_to_move = false) do
+    pawn
+  end
+
+  defp get_square_number(_current_square_number = 0) do
+    @end_square_of_board
+  end
+
+  defp get_square_number(current_square_number) do
+    current_square_number
   end
 end
