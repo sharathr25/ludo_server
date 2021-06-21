@@ -6,7 +6,6 @@ defmodule LudoServer.Room do
     :current_player_seat,
     :action_to_take,
     :score,
-    pawns_that_can_move: [],
     players: []
   ]
 
@@ -20,8 +19,7 @@ defmodule LudoServer.Room do
         :game_status,
         :score,
         :current_player_seat,
-        :action_to_take,
-        :pawns_that_can_move
+        :action_to_take
       ])
       |> ProperCase.to_camel_case()
       |> Jason.Encode.map(opts)
