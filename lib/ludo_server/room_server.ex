@@ -9,10 +9,10 @@ defmodule LudoServer.RoomServer do
   @required_score_to_move_from_home 6
   @max_home_column_score 6
   @starting_pawns [
-    %Pawn{no: 1, square_number: 1, group: "HOME"}
-    # %Pawn{no: 2, square_number: 2, group: "HOME"},
-    # %Pawn{no: 3, square_number: 3, group: "HOME"},
-    # %Pawn{no: 4, square_number: 4, group: "HOME"}
+    %Pawn{no: 1, square_number: 1, group: "HOME"},
+    %Pawn{no: 2, square_number: 2, group: "HOME"},
+    %Pawn{no: 3, square_number: 3, group: "HOME"},
+    %Pawn{no: 4, square_number: 4, group: "HOME"}
   ]
 
   # Client -------------------------
@@ -69,9 +69,8 @@ defmodule LudoServer.RoomServer do
   end
 
   @impl true
-  def handle_cast({:start_game}, %Room{room_id: room_id, players: existing_players} = state) do
-    # updated_state = state |> start_game(room_id, length(existing_players) > 1)
-    updated_state = state |> start_game(room_id, true)
+  def handle_cast({:start_game}, %Room{players: existing_players} = state) do
+    updated_state = state |> start_game(length(existing_players) > 1)
     {:noreply, updated_state}
   end
 
@@ -163,7 +162,7 @@ defmodule LudoServer.RoomServer do
     }
   end
 
-  defp start_game(state, room_id, _more_than_one_player_available = true) do
+  defp start_game(%Room{room_id: room_id} = state, _more_than_one_player_available = true) do
     updated_state = %Room{
       state
       | game_status: "ON_GOING",
@@ -176,24 +175,24 @@ defmodule LudoServer.RoomServer do
     updated_state
   end
 
-  defp start_game(state, room_id, _more_than_one_player_available = false) do
+  defp start_game(
+         %Room{room_id: room_id} = state,
+         _more_than_one_player_available = false
+       ) do
     Endpoint.broadcast!("room:#{room_id}", "START_GAME_ERROR", %{reason: "NOT_ENOUGH_PLAYERS"})
     state
   end
 
   defp get_next_player(current_player_seat, players) do
-    players
-    |> Enum.at(
-      rem(
-        Enum.find_index(
-          players,
-          fn p ->
-            p.seat == current_player_seat
-          end
-        ) + 1,
-        length(players)
-      )
-    )
+    next_player_index =
+      players
+      |> Enum.find_index(fn p ->
+        p.seat == current_player_seat
+      end)
+      |> Kernel.+(1)
+      |> rem(length(players))
+
+    Enum.at(players, next_player_index)
   end
 
   defp proceed_or_end_game(%Room{players: updated_players} = state) do
@@ -221,68 +220,71 @@ defmodule LudoServer.RoomServer do
     }
   end
 
-  defp maybe_update_rank(%Player{rank: 0} = player, _won = true, max_rank) do
-    %Player{player | rank: max_rank + 1}
+  defp maybe_update_pawn(%Pawn{group: "HOME"} = pawn, seat, score) do
+    %Pawn{
+      pawn
+      | square_number: score + @start_squares_for_seats[seat],
+        group: "COMMUNITY"
+    }
   end
 
-  defp maybe_update_rank(player, _won, _max_rank) do
-    player
-  end
-
-  defp maybe_update_pawn(p, seat, score, _need_to_move = true) do
+  defp maybe_update_pawn(
+         %Pawn{group: "HOME_COLUMN", square_number: square_number} = pawn,
+         _seat,
+         score
+       ) do
     cond do
-      p.group == "HOME" ->
+      score + square_number < @max_home_column_score ->
         %Pawn{
-          p
-          | square_number: score + @start_squares_for_seats[seat],
-            group: "COMMUNITY"
+          pawn
+          | square_number: rem(score + square_number, @end_square_of_board)
         }
 
-      p.group == "COMMUNITY" and
-        p.square_number == @end_squares_for_seats[seat] and
-          score == @max_home_column_score ->
+      score + square_number == @max_home_column_score ->
         %Pawn{
-          p
+          pawn
           | square_number: 1,
             group: "WIN_TRIANGLE"
         }
 
-      p.group == "COMMUNITY" and
-        p.square_number < @end_squares_for_seats[seat] and
-          score + p.square_number > @end_squares_for_seats[seat] ->
+      true ->
+        pawn
+    end
+  end
+
+  defp maybe_update_pawn(
+         %Pawn{group: "COMMUNITY", square_number: square_number} = pawn,
+         seat,
+         score
+       ) do
+    cond do
+      square_number == @end_squares_for_seats[seat] and
+          score == @max_home_column_score ->
         %Pawn{
-          p
+          pawn
+          | square_number: 1,
+            group: "WIN_TRIANGLE"
+        }
+
+      square_number < @end_squares_for_seats[seat] and
+          score + square_number > @end_squares_for_seats[seat] ->
+        %Pawn{
+          pawn
           | square_number:
-              score + p.square_number -
+              score + square_number -
                 @end_squares_for_seats[seat],
             group: "HOME_COLUMN"
         }
 
-      p.group == "HOME_COLUMN" and score + p.square_number < @max_home_column_score ->
-        %Pawn{
-          p
-          | square_number: rem(score + p.square_number, @end_square_of_board)
-        }
-
-      p.group == "HOME_COLUMN" and score + p.square_number == @max_home_column_score ->
-        %Pawn{
-          p
-          | square_number: 1,
-            group: "WIN_TRIANGLE"
-        }
-
-      p.group == "COMMUNITY" ->
-        %Pawn{
-          p
-          | square_number: get_square_number(rem(score + p.square_number, @end_square_of_board))
-        }
-
       true ->
-        p
+        %Pawn{
+          pawn
+          | square_number: get_square_number(rem(score + square_number, @end_square_of_board))
+        }
     end
   end
 
-  defp maybe_update_pawn(pawn, _seat, _score, _need_to_move = false) do
+  defp maybe_update_pawn(pawn, _, _) do
     pawn
   end
 
@@ -295,28 +297,31 @@ defmodule LudoServer.RoomServer do
   end
 
   defp update_score(state) do
-    nos_on_dice = [6]
+    nos_on_dice = [3, 6]
     score = Enum.random(nos_on_dice)
     %Room{state | score: score}
   end
 
   defp update_movable_pawns(%Room{score: score, players: players} = state, player_id) do
-    %Room{
-      state
-      | players: Enum.map(players, fn p -> update_movable_pawn(p, p.id === player_id, score) end)
-    }
+    updated_players =
+      players
+      |> Enum.map(fn p ->
+        if p.id === player_id do
+          update_movable_pawns(p, score)
+        else
+          p
+        end
+      end)
+
+    %Room{state | players: updated_players}
   end
 
-  defp update_movable_pawn(%Player{pawns: pawns} = player, _update = true, score) do
+  defp update_movable_pawns(%Player{pawns: pawns} = player, score) do
     updated_pawns =
       pawns
       |> Enum.map(fn p -> update_if_pawn_can_move(p, score) end)
 
     %Player{player | pawns: updated_pawns}
-  end
-
-  defp update_movable_pawn(player, _update = false, _score) do
-    player
   end
 
   defp update_if_pawn_can_move(
@@ -349,28 +354,34 @@ defmodule LudoServer.RoomServer do
   defp update_players_pawn(%Room{score: score, players: players} = state, player_id, pawn_no) do
     updated_players =
       players
-      |> Enum.map(fn p -> update_player_pawn(p, p.id == player_id, pawn_no, score) end)
+      |> Enum.map(fn p ->
+        if p.id == player_id do
+          update_player_pawn(p, pawn_no, score)
+        else
+          p
+        end
+      end)
 
     %Room{state | players: updated_players}
   end
 
   defp update_player_pawn(
          %Player{:pawns => pawns, :seat => seat} = player,
-         _update = true,
          pawn_no,
          score
        ) do
     updated_pawns =
       pawns
       |> Enum.map(fn p ->
-        %Pawn{maybe_update_pawn(p, seat, score, p.no == pawn_no) | can_move: false}
+        if p.no == pawn_no do
+          maybe_update_pawn(p, seat, score)
+        else
+          p
+        end
       end)
+      |> Enum.map(fn p -> %Pawn{p | can_move: false} end)
 
     %Player{player | pawns: updated_pawns}
-  end
-
-  defp update_player_pawn(player, _update = false, _pawn_no, _score) do
-    player
   end
 
   defp update_players_rank(%Room{players: players} = state, player_id) do
@@ -378,12 +389,18 @@ defmodule LudoServer.RoomServer do
 
     updated_players =
       players
-      |> Enum.map(fn p -> update_player_rank(p, p.id == player_id, max_rank) end)
+      |> Enum.map(fn p ->
+        if p.id == player_id do
+          update_player_rank(p, max_rank)
+        else
+          p
+        end
+      end)
 
     %Room{state | players: updated_players}
   end
 
-  defp update_player_rank(%Player{pawns: pawns} = player, _update = true, max_rank) do
+  defp update_player_rank(%Player{pawns: pawns} = player, max_rank) do
     maybe_update_rank(
       player,
       Enum.all?(pawns, fn p -> p.group == "WIN_TRIANGLE" end),
@@ -391,7 +408,11 @@ defmodule LudoServer.RoomServer do
     )
   end
 
-  defp update_player_rank(player, _update = false, _max_rank) do
+  defp maybe_update_rank(%Player{rank: 0} = player, _won = true, max_rank) do
+    %Player{player | rank: max_rank + 1}
+  end
+
+  defp maybe_update_rank(player, _won, _max_rank) do
     player
   end
 end
