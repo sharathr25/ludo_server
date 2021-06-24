@@ -16,10 +16,10 @@ defmodule LudoServer.RoomServerTest do
           id: "player_123",
           seat: 1,
           pawns: [
-            %Pawn{no: 1, square_number: 1, group: "HOME"},
-            %Pawn{no: 2, square_number: 2, group: "HOME"},
-            %Pawn{no: 3, square_number: 3, group: "HOME"},
-            %Pawn{no: 4, square_number: 4, group: "HOME"}
+            %Pawn{no: 1, position_number: 1, group: "HOME"},
+            %Pawn{no: 2, position_number: 2, group: "HOME"},
+            %Pawn{no: 3, position_number: 3, group: "HOME"},
+            %Pawn{no: 4, position_number: 4, group: "HOME"}
           ]
         }
       ]
@@ -29,7 +29,7 @@ defmodule LudoServer.RoomServerTest do
 
     updated_pawn = room |> Map.get(:players) |> hd |> Map.get(:pawns) |> hd
 
-    assert %LudoServer.Pawn{group: "COMMUNITY", no: 1, square_number: 6} = updated_pawn
+    assert %LudoServer.Pawn{group: "COMMUNITY", no: 1, position_number: 6} = updated_pawn
   end
 
   test "MOVE_PAWN from community square to home column when score increases player last square" do
@@ -42,7 +42,7 @@ defmodule LudoServer.RoomServerTest do
           id: "player_123",
           seat: 1,
           pawns: [
-            %Pawn{no: 1, square_number: 50, group: "COMMUNITY"}
+            %Pawn{no: 1, position_number: 50, group: "COMMUNITY"}
           ]
         }
       ]
@@ -52,7 +52,7 @@ defmodule LudoServer.RoomServerTest do
 
     updated_pawn = room |> Map.get(:players) |> hd |> Map.get(:pawns) |> hd
 
-    assert %LudoServer.Pawn{group: "HOME_COLUMN", no: 1, square_number: 5} = updated_pawn
+    assert %LudoServer.Pawn{group: "HOME_COLUMN", no: 1, position_number: 5} = updated_pawn
   end
 
   test "MOVE_PAWN from community square to community square when score increases last square" do
@@ -65,7 +65,7 @@ defmodule LudoServer.RoomServerTest do
           id: "player_123",
           seat: 2,
           pawns: [
-            %Pawn{no: 1, square_number: 50, group: "COMMUNITY"}
+            %Pawn{no: 1, position_number: 50, group: "COMMUNITY"}
           ]
         }
       ]
@@ -75,6 +75,6 @@ defmodule LudoServer.RoomServerTest do
 
     updated_pawn = room |> Map.get(:players) |> hd |> Map.get(:pawns) |> hd
 
-    assert %LudoServer.Pawn{group: "COMMUNITY", no: 1, square_number: 4} = updated_pawn
+    assert %LudoServer.Pawn{group: "COMMUNITY", no: 1, position_number: 4} = updated_pawn
   end
 end

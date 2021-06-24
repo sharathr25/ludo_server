@@ -9,10 +9,10 @@ defmodule LudoServer.RoomServer do
   @required_score_to_move_from_home 6
   @max_home_column_score 6
   @starting_pawns [
-    %Pawn{no: 1, square_number: 1, group: "HOME"},
-    %Pawn{no: 2, square_number: 2, group: "HOME"},
-    %Pawn{no: 3, square_number: 3, group: "HOME"},
-    %Pawn{no: 4, square_number: 4, group: "HOME"}
+    %Pawn{no: 1, position_number: 1, group: "HOME"},
+    %Pawn{no: 2, position_number: 2, group: "HOME"},
+    %Pawn{no: 3, position_number: 3, group: "HOME"},
+    %Pawn{no: 4, position_number: 4, group: "HOME"}
   ]
 
   # Client -------------------------
@@ -223,27 +223,27 @@ defmodule LudoServer.RoomServer do
   defp maybe_update_pawn(%Pawn{group: "HOME"} = pawn, seat, score) do
     %Pawn{
       pawn
-      | square_number: score + @start_squares_for_seats[seat],
+      | position_number: score + @start_squares_for_seats[seat],
         group: "COMMUNITY"
     }
   end
 
   defp maybe_update_pawn(
-         %Pawn{group: "HOME_COLUMN", square_number: square_number} = pawn,
+         %Pawn{group: "HOME_COLUMN", position_number: position_number} = pawn,
          _seat,
          score
        ) do
     cond do
-      score + square_number < @max_home_column_score ->
+      score + position_number < @max_home_column_score ->
         %Pawn{
           pawn
-          | square_number: rem(score + square_number, @end_square_of_board)
+          | position_number: rem(score + position_number, @end_square_of_board)
         }
 
-      score + square_number == @max_home_column_score ->
+      score + position_number == @max_home_column_score ->
         %Pawn{
           pawn
-          | square_number: 1,
+          | position_number: 1,
             group: "WIN_TRIANGLE"
         }
 
@@ -253,25 +253,25 @@ defmodule LudoServer.RoomServer do
   end
 
   defp maybe_update_pawn(
-         %Pawn{group: "COMMUNITY", square_number: square_number} = pawn,
+         %Pawn{group: "COMMUNITY", position_number: position_number} = pawn,
          seat,
          score
        ) do
     cond do
-      square_number == @end_squares_for_seats[seat] and
+      position_number == @end_squares_for_seats[seat] and
           score == @max_home_column_score ->
         %Pawn{
           pawn
-          | square_number: 1,
+          | position_number: 1,
             group: "WIN_TRIANGLE"
         }
 
-      square_number < @end_squares_for_seats[seat] and
-          score + square_number > @end_squares_for_seats[seat] ->
+      position_number < @end_squares_for_seats[seat] and
+          score + position_number > @end_squares_for_seats[seat] ->
         %Pawn{
           pawn
-          | square_number:
-              score + square_number -
+          | position_number:
+              score + position_number -
                 @end_squares_for_seats[seat],
             group: "HOME_COLUMN"
         }
@@ -279,7 +279,8 @@ defmodule LudoServer.RoomServer do
       true ->
         %Pawn{
           pawn
-          | square_number: get_square_number(rem(score + square_number, @end_square_of_board))
+          | position_number:
+              get_position_number(rem(score + position_number, @end_square_of_board))
         }
     end
   end
@@ -288,16 +289,16 @@ defmodule LudoServer.RoomServer do
     pawn
   end
 
-  defp get_square_number(_current_square_number = 0) do
+  defp get_position_number(_current_position_number = 0) do
     @end_square_of_board
   end
 
-  defp get_square_number(current_square_number) do
-    current_square_number
+  defp get_position_number(current_position_number) do
+    current_position_number
   end
 
   defp update_score(state) do
-    nos_on_dice = [3, 6]
+    nos_on_dice = [1, 2, 3, 4, 5, 6]
     score = Enum.random(nos_on_dice)
     %Room{state | score: score}
   end
@@ -332,10 +333,10 @@ defmodule LudoServer.RoomServer do
   end
 
   defp update_if_pawn_can_move(
-         %Pawn{group: "HOME_COLUMN", square_number: square_number} = pawn,
+         %Pawn{group: "HOME_COLUMN", position_number: position_number} = pawn,
          score
        )
-       when score + square_number <= @max_home_column_score do
+       when score + position_number <= @max_home_column_score do
     %Pawn{pawn | can_move: true}
   end
 
