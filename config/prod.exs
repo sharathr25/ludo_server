@@ -11,7 +11,7 @@ use Mix.Config
 # before starting your production server.
 config :ludo_server, LudoServerWeb.Endpoint,
   url: [scheme: "https", host: "thawing-waters-18867.herokuapp.com", port: 443],
-  force_ssl: [rewrite_on: [:x_forwarded_proto]]
+  force_ssl: [rewrite_on: [:x_forwarded_proto], hsts: true]
 
 # ## SSL Support
 #
