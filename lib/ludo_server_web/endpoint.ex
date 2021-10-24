@@ -13,7 +13,7 @@ defmodule LudoServerWeb.Endpoint do
   socket "/socket", LudoServerWeb.UserSocket,
     websocket: [timeout: 45_000],
     longpoll: false,
-    check_origin: false
+    check_origin: ["https://ludo-ed771.web.app"]
 
   socket "/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options]]
 
