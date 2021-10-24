@@ -10,8 +10,8 @@ use Mix.Config
 # which you should run after static files are built and
 # before starting your production server.
 config :ludo_server, LudoServerWeb.Endpoint,
-  url: [scheme: "https", host: "thawing-waters-18867.herokuapp.com", port: 443],
-  force_ssl: [rewrite_on: [:x_forwarded_proto]]
+  url: [scheme: "https", host: "https://ludo-ed771.web.app", port: 443],
+  force_ssl: [rewrite_on: [:x_forwarded_proto], hsts: true]
 
 # ## SSL Support
 #
