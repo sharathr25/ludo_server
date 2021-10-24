@@ -12,8 +12,7 @@ defmodule LudoServerWeb.Endpoint do
 
   socket "/socket", LudoServerWeb.UserSocket,
     websocket: [timeout: 45_000],
-    longpoll: false,
-    check_origin: ["https://ludo-ed771.web.app"]
+    longpoll: false
 
   socket "/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options]]
 
@@ -50,7 +49,7 @@ defmodule LudoServerWeb.Endpoint do
   plug Plug.Head
   plug Plug.Session, @session_options
 
-  plug CORSPlug
+  plug CORSPlug, origin: ~r/.*/
 
   plug LudoServerWeb.Router
 end
