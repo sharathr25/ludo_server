@@ -49,7 +49,7 @@ defmodule LudoServerWeb.Endpoint do
   plug Plug.Head
   plug Plug.Session, @session_options
 
-  plug CORSPlug, origin: ~r/.*/
+  plug CORSPlug
 
   plug LudoServerWeb.Router
 end

@@ -17,7 +17,7 @@ config :ludo_server, LudoServerWeb.Endpoint,
   render_errors: [view: LudoServerWeb.ErrorView, accepts: ~w(json), layout: false],
   pubsub_server: LudoServer.PubSub,
   live_view: [signing_salt: "xFnb4KrE"],
-  check_origin: ["https://ludo-ed771.web.app/", "localhost"]
+  check_origin: ["https://ludo-ed771.web.app/", "http://localhost:1234/"]
 
 # Configures Elixir's Logger
 config :logger, :console,
