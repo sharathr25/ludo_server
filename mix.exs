@@ -9,7 +9,7 @@ defmodule LudoServer.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       compilers: [:phoenix, :gettext] ++ Mix.compilers(),
       start_permanent: Mix.env() == :prod,
-      aliases: aliases(),
+      # aliases: aliases(), ignoring since we are not using db
       deps: deps()
     ]
   end

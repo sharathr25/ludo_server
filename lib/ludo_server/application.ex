@@ -8,7 +8,7 @@ defmodule LudoServer.Application do
   def start(_type, _args) do
     children = [
       # Start the Ecto repository
-      LudoServer.Repo,
+      # LudoServer.Repo,
       # Start the Telemetry supervisor
       LudoServerWeb.Telemetry,
       # Start the PubSub system
