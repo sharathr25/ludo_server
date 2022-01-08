@@ -1,4 +1,4 @@
-use Mix.Config
+import Config
 
 # Configure your database
 config :ludo_server, LudoServer.Repo,

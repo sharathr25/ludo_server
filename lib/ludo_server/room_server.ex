@@ -42,6 +42,10 @@ defmodule LudoServer.RoomServer do
     GenServer.cast({:via, :swarm, room_id}, {:move_pawn, player_id, pawn_no})
   end
 
+  def capture_pawn(room_id, updated_player_id, updated_pawn) do
+    GenServer.cast({:via, :swarm, room_id}, {:capture_pawn, updated_player_id, updated_pawn})
+  end
+
   # Server (callbacks) ----------------
   @impl true
   def init(room) do
@@ -96,6 +100,20 @@ defmodule LudoServer.RoomServer do
       |> proceed_or_end_game
 
     Endpoint.broadcast!("room:#{room_id}", "MOVE_PAWN_NOTIFY", updated_state)
+
+    {:noreply, updated_state}
+  end
+
+  @impl true
+  def handle_cast(
+        {:capture_pawn, updated_player_id, updated_pawn},
+        %Room{room_id: room_id} = state
+      ) do
+    updated_state =
+      state
+      |> capture_and_update_players(updated_player_id, updated_pawn)
+
+    Endpoint.broadcast!("room:#{room_id}", "PAWN_CAPTURE_NOTIFY", updated_state)
 
     {:noreply, updated_state}
   end
@@ -352,12 +370,16 @@ defmodule LudoServer.RoomServer do
     %Pawn{pawn | can_move: false}
   end
 
-  defp update_players_pawn(%Room{score: score, players: players} = state, player_id, pawn_no) do
+  defp update_players_pawn(
+         %Room{score: score, players: players, room_id: room_id} = state,
+         player_id,
+         pawn_no
+       ) do
     updated_players =
       players
       |> Enum.map(fn p ->
         if p.id == player_id do
-          update_player_pawn(p, pawn_no, score)
+          update_player_pawns(p, pawn_no, score, player_id, room_id)
         else
           p
         end
@@ -366,16 +388,24 @@ defmodule LudoServer.RoomServer do
     %Room{state | players: updated_players}
   end
 
-  defp update_player_pawn(
+  defp update_player_pawns(
          %Player{:pawns => pawns, :seat => seat} = player,
          pawn_no,
-         score
+         score,
+         player_id,
+         room_id
        ) do
     updated_pawns =
       pawns
       |> Enum.map(fn p ->
         if p.no == pawn_no do
-          maybe_update_pawn(p, seat, score)
+          pawn = maybe_update_pawn(p, seat, score)
+
+          if p.position_number != pawn.position_number or p.group != pawn.group do
+            capture_pawn(room_id, player_id, pawn)
+          end
+
+          pawn
         else
           p
         end
@@ -415,5 +445,46 @@ defmodule LudoServer.RoomServer do
 
   defp maybe_update_rank(player, _won, _max_rank) do
     player
+  end
+
+  defp capture_and_update_players(
+         %Room{players: players} = state,
+         updated_player_id,
+         updated_pawn
+       ) do
+    updated_players =
+      players
+      |> Enum.map(fn p ->
+        if p.id == updated_player_id do
+          p
+        else
+          maybe_capture_pawn(p, updated_pawn)
+        end
+      end)
+
+    %{state | players: updated_players}
+  end
+
+  defp maybe_capture_pawn(%Player{pawns: pawns} = player, updated_pawn) do
+    updated_pawns =
+      pawns
+      |> Enum.map(fn p ->
+        if p.position_number == updated_pawn.position_number and p.group == updated_pawn.group do
+          %Pawn{p | position_number: get_open_home_position_number(pawns), group: "HOME"}
+        else
+          p
+        end
+      end)
+
+    %{player | pawns: updated_pawns}
+  end
+
+  defp get_open_home_position_number(pawns) do
+    occupied_homes =
+      pawns
+      |> Enum.filter(fn p -> p.group == "HOME" end)
+      |> Enum.map(fn p -> p.position_number end)
+
+    ([1, 2, 3, 4] -- occupied_homes) |> hd()
   end
 end
