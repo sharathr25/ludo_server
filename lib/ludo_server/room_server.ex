@@ -106,15 +106,10 @@ defmodule LudoServer.RoomServer do
   end
 
   @impl true
-  def handle_cast(
-        {:capture_pawn, updated_player_id, updated_pawn},
-        %Room{room_id: room_id} = state
-      ) do
+  def handle_cast({:capture_pawn, updated_player_id, updated_pawn}, state) do
     updated_state =
       state
       |> capture_and_update_players(updated_player_id, updated_pawn)
-
-    Endpoint.broadcast!("room:#{room_id}", "PAWN_CAPTURE_NOTIFY", updated_state)
 
     {:noreply, updated_state}
   end
@@ -449,7 +444,7 @@ defmodule LudoServer.RoomServer do
   end
 
   defp capture_and_update_players(
-         %Room{players: players} = state,
+         %Room{players: players, room_id: room_id} = state,
          updated_player_id,
          %Pawn{group: group, position_number: position_number} = updated_pawn
        ) do
@@ -462,7 +457,7 @@ defmodule LudoServer.RoomServer do
           if p.id == updated_player_id do
             p
           else
-            maybe_capture_pawn(p, updated_pawn)
+            maybe_capture_pawn(p, updated_pawn, room_id)
           end
         end)
 
@@ -470,18 +465,27 @@ defmodule LudoServer.RoomServer do
     end
   end
 
-  defp maybe_capture_pawn(%Player{pawns: pawns} = player, updated_pawn) do
-    updated_pawns =
+  defp maybe_capture_pawn(%Player{pawns: pawns} = player, updated_pawn, room_id) do
+    captured_pawns =
       pawns
+      |> Enum.filter(fn p ->
+        p.position_number == updated_pawn.position_number and p.group == updated_pawn.group
+      end)
       |> Enum.map(fn p ->
-        if p.position_number == updated_pawn.position_number and p.group == updated_pawn.group do
-          %Pawn{p | position_number: get_open_home_position_number(pawns), group: "HOME"}
-        else
-          p
-        end
+        %Pawn{p | position_number: get_open_home_position_number(pawns), group: "HOME"}
       end)
 
-    %{player | pawns: updated_pawns}
+    non_captured_pawns =
+      pawns |> Enum.filter(fn p -> p.position_number != updated_pawn.position_number end)
+
+    updated_pawns = (captured_pawns ++ non_captured_pawns) |> Enum.sort(&(&2 >= &1))
+
+    if length(captured_pawns) == 1 do
+      Endpoint.broadcast!("room:#{room_id}", "PAWN_CAPTURE_NOTIFY", hd(captured_pawns))
+      %{player | pawns: updated_pawns}
+    else
+      player
+    end
   end
 
   defp get_open_home_position_number(pawns) do
