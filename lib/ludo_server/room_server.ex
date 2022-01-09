@@ -14,6 +14,7 @@ defmodule LudoServer.RoomServer do
     %Pawn{no: 3, position_number: 3, group: "HOME"},
     %Pawn{no: 4, position_number: 4, group: "HOME"}
   ]
+  @safe_squares [1, 14, 27, 40]
 
   # Client -------------------------
   def start_room(id) do
@@ -450,19 +451,23 @@ defmodule LudoServer.RoomServer do
   defp capture_and_update_players(
          %Room{players: players} = state,
          updated_player_id,
-         updated_pawn
+         %Pawn{group: group, position_number: position_number} = updated_pawn
        ) do
-    updated_players =
-      players
-      |> Enum.map(fn p ->
-        if p.id == updated_player_id do
-          p
-        else
-          maybe_capture_pawn(p, updated_pawn)
-        end
-      end)
+    if Enum.member?(@safe_squares, position_number) or group != "COMMUNITY" do
+      state
+    else
+      updated_players =
+        players
+        |> Enum.map(fn p ->
+          if p.id == updated_player_id do
+            p
+          else
+            maybe_capture_pawn(p, updated_pawn)
+          end
+        end)
 
-    %{state | players: updated_players}
+      %{state | players: updated_players}
+    end
   end
 
   defp maybe_capture_pawn(%Player{pawns: pawns} = player, updated_pawn) do
